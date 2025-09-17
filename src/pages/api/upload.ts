@@ -1,3 +1,4 @@
+// src/pages/api/upload.ts
 import type { NextApiRequest, NextApiResponse } from "next";
 import { connectToDB } from "@/lib/mongo";
 
@@ -9,17 +10,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await db.collection("firebase_config").deleteMany({});
 
     if (req.body?.json) {
-      // Case: pasted JSON
-      JSON.parse(req.body.json); // validate JSON
+      // Parse and validate JSON
+      const parsed = JSON.parse(req.body.json);
+
       await db.collection("firebase_config").insertOne({
-        content: req.body.json,
+        content: parsed, // ✅ store as object not string
         createdAt: new Date(),
       });
+
       return res.status(200).json({ message: "JSON stored ✅" });
     }
 
     return res.status(400).json({ error: "No JSON provided" });
   } catch (err: any) {
+    console.error("Upload API Error:", err);
     return res.status(500).json({ error: err.message });
   }
 }

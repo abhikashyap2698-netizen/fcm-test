@@ -4,21 +4,15 @@ import { connectToDB } from "@/lib/mongo";
 import admin from "firebase-admin";
 
 async function initFirebase() {
-  // Reuse firebase app if already initialized
   if (admin.apps.length) return admin.app();
 
   const db = await connectToDB();
   const row = await db.collection("firebase_config").findOne({});
   if (!row) throw new Error("No Firebase config uploaded");
 
-  let config = row.content;
+  const config = row.content;
 
-  // Ensure config is parsed
-  if (typeof config === "string") {
-    config = JSON.parse(config);
-  }
-
-  // Fix private key line breaks if stored as escaped string
+  // Fix private key line breaks
   if (config.private_key) {
     config.private_key = config.private_key.replace(/\\n/g, "\n");
   }
@@ -54,7 +48,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     return res.status(200).json({ success: true, id: response });
   } catch (err: any) {
-    console.error("Notify API Error:", err); // 👈 check terminal logs
+    console.error("Notify API Error:", err);
     return res.status(500).json({ error: err.message });
   }
 }
