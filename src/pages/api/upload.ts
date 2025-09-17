@@ -1,37 +1,25 @@
-// src/pages/api/upload.ts
 import type { NextApiRequest, NextApiResponse } from "next";
 import { connectToDB } from "@/lib/mongo";
-import multer from "multer";
-import { createRouter } from "next-connect";
 
-const upload = multer({ storage: multer.memoryStorage() }); // store in memory
-const router = createRouter<NextApiRequest, NextApiResponse>();
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== "POST") return res.status(405).end();
 
-router.use(upload.single("file") as any);
-
-router.post(async (req: NextApiRequest & { file?: any }, res: NextApiResponse) => {
   try {
-    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-
     const db = await connectToDB();
-
-    // Clear previous config
     await db.collection("firebase_config").deleteMany({});
 
-    // Insert new config
-    await db.collection("firebase_config").insertOne({
-      content: req.file.buffer.toString("utf8"),
-      createdAt: new Date(),
-    });
+    if (req.body?.json) {
+      // Case: pasted JSON
+      JSON.parse(req.body.json); // validate JSON
+      await db.collection("firebase_config").insertOne({
+        content: req.body.json,
+        createdAt: new Date(),
+      });
+      return res.status(200).json({ message: "JSON stored ✅" });
+    }
 
-    res.status(200).json({ message: "Firebase config uploaded ✅" });
+    return res.status(400).json({ error: "No JSON provided" });
   } catch (err: any) {
-    res.status(500).json({ error: err.message || "Failed to upload" });
+    return res.status(500).json({ error: err.message });
   }
-});
-
-export const config = {
-  api: { bodyParser: false },
-};
-
-export default router.handler();
+}

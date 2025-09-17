@@ -3,32 +3,48 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { connectToDB } from "@/lib/mongo";
 import admin from "firebase-admin";
 
-let firebaseApp: admin.app.App | null = null;
-
 async function initFirebase() {
-  if (firebaseApp) return firebaseApp;
+  // Reuse firebase app if already initialized
+  if (admin.apps.length) return admin.app();
 
   const db = await connectToDB();
   const row = await db.collection("firebase_config").findOne({});
-  if (!row) throw new Error("Firebase config not uploaded yet!");
+  if (!row) throw new Error("No Firebase config uploaded");
 
-  const firebaseConfig = JSON.parse(row.content);
-  firebaseApp = admin.initializeApp({
-    credential: admin.credential.cert(firebaseConfig),
+  let config = row.content;
+
+  // Ensure config is parsed
+  if (typeof config === "string") {
+    config = JSON.parse(config);
+  }
+
+  // Fix private key line breaks if stored as escaped string
+  if (config.private_key) {
+    config.private_key = config.private_key.replace(/\\n/g, "\n");
+  }
+
+  admin.initializeApp({
+    credential: admin.credential.cert(config),
   });
 
-  return firebaseApp;
+  return admin.app();
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "POST") return res.status(405).end();
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
 
   try {
     await initFirebase();
 
     const { token, title, body, data } = req.body;
 
-    const message = {
+    if (!token || !title || !body) {
+      return res.status(400).json({ error: "Missing fields: token, title, or body" });
+    }
+
+    const message: admin.messaging.Message = {
       token,
       notification: { title, body },
       data: data || {},
@@ -36,8 +52,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const response = await admin.messaging().send(message);
 
-    res.status(200).json({ success: true, id: response });
+    return res.status(200).json({ success: true, id: response });
   } catch (err: any) {
-    res.status(500).json({ error: err.message || "Failed to send notification" });
+    console.error("Notify API Error:", err); // 👈 check terminal logs
+    return res.status(500).json({ error: err.message });
   }
 }
