@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { connectToDB } from "@/lib/mongo";
 import admin from "firebase-admin";
+
+let firebaseApp: admin.app.App | null = null;
 
 function setCors(res: NextApiResponse) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -8,40 +9,37 @@ function setCors(res: NextApiResponse) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 }
 
-async function initFirebase() {
-  if (admin.apps.length) return admin.app();
+async function initFirebase(serviceAccount: any) {
+  if (firebaseApp) return firebaseApp;
 
-  const db = await connectToDB();
-  const row = await db.collection("firebase_config").findOne({});
-  if (!row) throw new Error("No Firebase config uploaded");
-
-  let config: any = row.content;
-  if (typeof config === "string") config = JSON.parse(config);
-
-  if (config.private_key) {
-    config.private_key = config.private_key.replace(/\\n/g, "\n");
+  // Fix private key line breaks
+  if (serviceAccount.private_key) {
+    serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
   }
 
-  admin.initializeApp({
-    credential: admin.credential.cert(config),
+  firebaseApp = admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
   });
 
-  return admin.app();
+  return firebaseApp;
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   setCors(res);
   if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).end();
+
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
 
   try {
-    await initFirebase();
+    const { serviceAccount, token, title, body, data } = req.body;
 
-    const { token, title, body, data } = req.body;
-
-    if (!token || !title || !body) {
-      return res.status(400).json({ error: "Missing fields: token, title, or body" });
+    if (!serviceAccount || !token || !title || !body) {
+      return res.status(400).json({ error: "Missing fields: serviceAccount, token, title, or body" });
     }
+
+    await initFirebase(serviceAccount);
 
     const message: admin.messaging.Message = {
       token,
@@ -50,6 +48,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     };
 
     const response = await admin.messaging().send(message);
+
     return res.status(200).json({ success: true, id: response });
   } catch (err: any) {
     console.error("Notify API Error:", err);
