@@ -1,6 +1,7 @@
-[build]
-  command = "npm run build"
-  publish = ".next"
+[functions]
+  node_bundler = "esbuild"
+  external_node_modules = ["mongodb", "firebase-admin"]
+  included_files = ["lib/**"]
 
-[[plugins]]
-  package = "@netlify/plugin-nextjs"
+[functions."api/*"]
+  timeout = 26

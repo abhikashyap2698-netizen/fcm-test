@@ -1,7 +1,12 @@
-// src/pages/api/notify.ts
 import type { NextApiRequest, NextApiResponse } from "next";
 import { connectToDB } from "@/lib/mongo";
 import admin from "firebase-admin";
+
+function setCors(res: NextApiResponse) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+}
 
 async function initFirebase() {
   if (admin.apps.length) return admin.app();
@@ -10,9 +15,9 @@ async function initFirebase() {
   const row = await db.collection("firebase_config").findOne({});
   if (!row) throw new Error("No Firebase config uploaded");
 
-  const config = row.content;
+  let config: any = row.content;
+  if (typeof config === "string") config = JSON.parse(config);
 
-  // Fix private key line breaks
   if (config.private_key) {
     config.private_key = config.private_key.replace(/\\n/g, "\n");
   }
@@ -25,9 +30,9 @@ async function initFirebase() {
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
+  setCors(res);
+  if (req.method === "OPTIONS") return res.status(200).end();
+  if (req.method !== "POST") return res.status(405).end();
 
   try {
     await initFirebase();
@@ -45,7 +50,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     };
 
     const response = await admin.messaging().send(message);
-
     return res.status(200).json({ success: true, id: response });
   } catch (err: any) {
     console.error("Notify API Error:", err);

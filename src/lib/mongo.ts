@@ -2,20 +2,22 @@
 import { MongoClient, Db } from "mongodb";
 
 const uri =
-  "mongodb+srv://abhikashyap2698_db_user:t0YIOzXwPUF5IVaS@abhi-pro.xmk207b.mongodb.net/?retryWrites=true&w=majority";
+  "mongodb+srv://abhikashyap2698_db_user:t0YIOzXwPUF5IVaS@abhi-pro.xmk207b.mongodb.net/fcm_test?retryWrites=true&w=majority&maxPoolSize=1";
+
 const dbName = "fcm_test";
 
-let cached: { client: MongoClient; db: Db } | null = null;
+let cachedClient: MongoClient | null = null;
+let cachedDb: Db | null = null;
 
 export async function connectToDB(): Promise<Db> {
-  if (cached) return cached.db;
+  if (cachedDb) return cachedDb;
 
-  const client = new MongoClient(uri);
-  await client.connect();
+  if (!cachedClient) {
+    cachedClient = new MongoClient(uri);
+    await cachedClient.connect();
+  }
 
-  const db = client.db(dbName);
-  cached = { client, db };
-
-  console.log("✅ MongoDB connected!");
-  return db;
+  cachedDb = cachedClient.db(dbName);
+  console.log("✅ MongoDB connected (cached)");
+  return cachedDb;
 }
