@@ -41,3 +41,6 @@ yarn-error.log*
 next-env.d.ts
 uploads/firebase.json
 uploads/firebase.json
+data.sqlite
+uploads/
+*.json
