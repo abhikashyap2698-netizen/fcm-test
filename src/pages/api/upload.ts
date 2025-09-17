@@ -1,32 +1,37 @@
-import { createRouter } from "next-connect";
-import multer from "multer";
-import fs from "fs";
+// src/pages/api/upload.ts
 import type { NextApiRequest, NextApiResponse } from "next";
-import db from "@/lib/db";
+import { connectToDB } from "@/lib/mongo";
+import multer from "multer";
+import { createRouter } from "next-connect";
 
-const upload = multer({ dest: "uploads/" });
+const upload = multer({ storage: multer.memoryStorage() }); // store in memory
 const router = createRouter<NextApiRequest, NextApiResponse>();
 
 router.use(upload.single("file") as any);
 
-router.post((req, res) => {
+router.post(async (req: NextApiRequest & { file?: any }, res: NextApiResponse) => {
   try {
-    const filePath = (req as any).file.path;
-    const content = fs.readFileSync(filePath, "utf8");
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
-    // Clear old config
-    db.prepare("DELETE FROM firebase_config").run();
+    const db = await connectToDB();
 
-    // Save new config
-    db.prepare("INSERT INTO firebase_config (content) VALUES (?)").run(content);
+    // Clear previous config
+    await db.collection("firebase_config").deleteMany({});
 
-    fs.unlinkSync(filePath);
+    // Insert new config
+    await db.collection("firebase_config").insertOne({
+      content: req.file.buffer.toString("utf8"),
+      createdAt: new Date(),
+    });
 
-    res.status(200).json({ message: "Firebase config saved in DB ✅" });
-  } catch (err) {
-    res.status(500).json({ error: "Failed to save file" });
+    res.status(200).json({ message: "Firebase config uploaded ✅" });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to upload" });
   }
 });
 
+export const config = {
+  api: { bodyParser: false },
+};
+
 export default router.handler();
-export const config = { api: { bodyParser: false } };

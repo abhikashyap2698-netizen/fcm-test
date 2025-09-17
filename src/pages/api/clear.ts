@@ -1,13 +1,15 @@
+// src/pages/api/clear.ts
 import type { NextApiRequest, NextApiResponse } from "next";
-import db from "@/lib/db";
+import { connectToDB } from "@/lib/mongo";
 
-export default function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") return res.status(405).end();
 
   try {
-    db.prepare("DELETE FROM firebase_config").run();
+    const db = await connectToDB();
+    await db.collection("firebase_config").deleteMany({});
     res.status(200).json({ message: "Cache cleared ✅" });
-  } catch (err) {
-    res.status(500).json({ error: "Failed to clear cache" });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Failed to clear cache" });
   }
 }

@@ -12,6 +12,7 @@
     "@netlify/plugin-nextjs": "^5.13.2",
     "better-sqlite3": "^12.2.0",
     "firebase-admin": "^13.5.0",
+    "mongodb": "^6.19.0",
     "multer": "^2.0.2",
     "next": "15.5.3",
     "next-connect": "^1.0.0",
